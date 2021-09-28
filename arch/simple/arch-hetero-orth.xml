@@ -1,0 +1,39 @@
+<cgra>
+  <module name="block1">
+    <input name="in0"/> <input name="in1"/> <input name="in2"/> <input name="in3"/>
+    <output name="out"/>
+    <inst name="func" module="FuncUnit" if="(empty (mode))"/>
+    <inst name="func" module="FuncUnit" if="(not (empty (mode)))" op="(mode)"/>
+    <inst name="register" module="Register"/>
+    <wire name="in_a"/> <wire name="in_b"/> <wire name="func_out"/>
+    <connection select-from="this.in0 this.in1 this.in2 this.in3 register.out" to="in_a in_b"/>
+    <connection from="in_a" to="func.in_a"/>
+    <connection from="in_b" to="func.in_b"/>
+    <connection select-from="in_a in_b func.out" to="func_out"/>
+    <connection from="func_out" to="register.in"/>
+    <connection select-from="func_out register.out" to="this.out"/>
+  </module>
+  <architecture col="4" row="4" cgra-cols="2" cgra-rows="2">
+    <mesh out-north=".out"
+          out-east=".out"
+          out-west=".out"
+          out-south=".out"
+          in-north=".in0"
+          in-east=".in1"
+          in-west=".in2"
+          in-south=".in3"
+          io="every-side-port"
+          >
+      <interior row="1">
+        <block module="block1" mode="add sub mul div and or xor shl shr"/>
+        <block module="block1" mode="add sub and or xor shl shr"/>
+        <block module="block1" mode="add sub and or xor shl shr"/>
+        <block module="block1" mode="add sub and or xor shl shr"/>
+        <block module="block1" mode="add sub and or xor shl shr"/>
+        <block module="block1" mode="add sub and or xor shl shr"/>
+        <block module="block1" mode="add sub and or xor shl shr"/>
+        <block module="block1" mode="add sub and or xor shl shr"/>
+      </interior>
+    </mesh>
+  </architecture>
+</cgra>

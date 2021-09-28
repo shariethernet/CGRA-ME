@@ -1,0 +1,370 @@
+#!/usr/bin/env python3
+
+import argparse;
+import enum;
+import importlib;
+import multiprocessing;
+import os;
+import pathlib;
+import pprint;
+import re;
+import subprocess;
+import sys;
+import textwrap;
+import time;
+
+class Constants: pass
+
+FILENAMES = Constants();
+FILENAMES.stdout = 'stdout.txt';
+FILENAMES.stderr = 'stderr.txt';
+FILENAMES.parse  =  'parse.txt';
+
+MAKE_TARGETS = Constants();
+MAKE_TARGETS.setup = 'prepare_run';
+MAKE_TARGETS.run   = 'run_mapper';
+
+help_epilogue = textwrap.TextWrapper(expand_tabs=True, tabsize=2, replace_whitespace=False, width=100000).fill("""
+=== An Experiment Runner for CGRA-ME ===
+	This script is capable of running a list of experiments, and is configured via a python file given with the --experiment-file flag.
+	It can run XML and CPP architectures, will search specified directories for architectures or benchmarks, and save the standard out & err of experiments.
+	Make is called to run actual experiment executables for easy integration.
+
+	== The Configuration Script ==
+		The file specified is imported, and it attempts to call a function 'configuration' with a single map-like argument that contains some helpful data.
+		This function is expected to return a map-like object with several fields.
+
+		= Configuration Environment Keys =
+			'cgrame_root'
+				the root directory of this CRGA-ME repo (where eg. src, inc & lib are)
+
+		= Configuration Return Object Keys =
+			In the following, the 'identifier' tuple element sometimes may be left out, and in that case the single remaining tuple element will be used for both data.
+
+			'benchdirs'
+				- A list of paths to search in for benchmarks. Order is important, as the first match will be taken.
+			'archdirs'
+				- A list of paths to search in for architecture files. Order is important, as the first match will be taken.
+			'xml_arch_bases'
+				- A list of (string, string) tuples (arch id, relative path) associating an identifier with an architecture file.
+				- The relative path will be resolved to the first match in the archdirs list, and ignored if not found.
+			'cpp_arch_bases'
+				- A list of (string, string) tuples (arch id, arg) associating an identifier with an argument to the '--cpp' flag of the mapper.
+			'arch_args'
+				- A list of (string, string) tuples (arch args id, args) associating an identifier with an argument string to be combined with an architecture.
+			'arch_specs'
+				- A list of (string, string, [string]) tuples (arch spec id, arch id, [arch arg id]) associating an identifier with a complete architecture specification.
+				- Architecture arguments will be merged with a single space in-between.
+				- These architecture specifications will show up in the CGRA_ARCH_ARGS variable when running Make commands.
+			'bench'
+				- A list of (string, string) tuples (bench id, relative path) associating an identifier with a benchmark.
+				- The relative path will be resolved to the first match in the benchdirs list, and ignored if not found.
+				- The resolved path will be where the Make commands are run
+			'crga_mapper_args'
+				- A list of (string, string) tuples (mapper args id, args) associating an identifier with an argument string to be passed to the mapper.
+				- Will show up in the CGRA_MAPPER_ARGS variable when running Make commands.
+			'parse_directves'
+				- A list of (string, string, string) tuples (parse dir id, regex, substitution) associating an identifier with a regex to search experiments' standard out for and the way to display the results.
+				- results will be placed in `{FILENAMES.parse}` in the experiment run output directory
+			'experiments'
+				- A list of (string, string, string) tuples (arch spec id, bench id, mapper arg id) specifying the experiments to run.
+				- itertools.product for making this.
+
+	== Make Commands Run ==
+		All commands are run in the benchmark directory. Make will be invoked such that the following variables are defined.
+
+		CGRA_MAPPER
+			- The mapper executable to invoke.
+		CGRA_ARCH_ARGS
+			- Architecture related arguments for the mapper.
+		CGRA_MAPPER_ARGS
+			- Other arguments for the mapper.
+
+		The target `{MAKE_TARGETS.setup}` will be invoked to allow preparation steps to be taken.
+		And, the target `{MAKE_TARGETS.run}` will be invoke with the intention of running the mapper.
+		An example implementation of `{MAKE_TARGETS.run}` could be:
+
+		'$(CGRA_MAPPER)' $(CGRA_MAPPER_ARGS) $(CGRA_ARCH_ARGS) graph_loop.dot
+""".format(
+	**globals()
+));
+
+prprint = pprint.PrettyPrinter(indent=2, width=1).pprint
+
+cgrame_root = os.environ.get('CGRA_ME_ROOTDIR', '..');
+
+def main():
+	argp = argparse.ArgumentParser(description='CRGA-ME Experiment Runner', epilog=help_epilogue, formatter_class=argparse.RawTextHelpFormatter);
+	argp.add_argument('-f', '--experiment-file', default='exp_conf.py',   type=str,     help='File to read experiment configuration from.');
+	argp.add_argument('-j', '--jobs',            default=1,               type=int,     help='Number of simultaneous processes to attempt to run. Subject to -l.');
+	argp.add_argument('-l', '--load-average',    default=0,               type=float,   help='Load average, like in Make. A value of 0 means not limited.');
+	argp.add_argument('-o', '--output-prefix',   default='exp-run',       type=str,     help='Path to a directory to put experiment output into. Will be created if it does not exist.');
+	arguments = vars(argp.parse_args());
+
+	# execute configuration file/script specified
+	config_file_path = pathlib.Path(arguments['experiment_file']).resolve();
+	config_filename = pathlib.Path(config_file_path.stem if config_file_path.suffix == '.py' else config_file_path).name
+	sys.path.insert(0, str(config_file_path.parent));
+	print("importing {} with sys.path {}".format(config_filename, sys.path));
+	config = importlib.import_module(config_filename).configuration({ 'cgrame_root' : cgrame_root });
+
+	# copy some arguments interpreted/needed later
+	for aname, cname in [
+		('jobs', 'parallelism'),
+		('output_prefix',)*2,
+		('load_average',)*2,
+	]:
+		if arguments[aname] and cname not in config:
+			config[cname] = arguments[aname];
+
+	# here we go!
+	run_experiments(config);
+
+def run_experiments(config):
+	# convert some inputs to more useful forms, provide default names & values
+	benchdirs = [pathlib.Path(p) for p in config["benchdirs"]];
+	archdirs  = [pathlib.Path(p) for p in config[ "archdirs"]];
+	xml_arch_bases = {k:v     for k,v   in [tup if len(tup) == 2 else tup + tup   for tup in config['xml_arch_bases']]};
+	cpp_arch_bases = {k:v     for k,v   in [tup if len(tup) == 2 else tup + tup   for tup in config['cpp_arch_bases']]};
+	bench_specs    = {k:v     for k,v   in [tup if len(tup) == 2 else tup + tup   for tup in config[         'bench']]};
+	arch_arg_strs  = {k:v     for k,v   in [tup if len(tup) == 2 else tup + tup   for tup in config[     'arch_args']]};
+	arch_specs     = {k:(v,w) for k,v,w in [tup if len(tup) == 3 else tup + ([],) for tup in config[    'arch_specs']]};
+	mapperarg_strs = dict(config['crga_mapper_args']);
+	parse_directves = [ParseDirective(tup[0], re.compile(tup[1]), tup[2]) for tup in config['parse_directves']];
+	output_prefix = config['output_prefix'];
+	experiment_specs = config['experiments'];
+
+	# this will be part of the make command lines. Make sure CGRA_MAPPER is set.
+	global_explicit_env = {
+	};
+	if 'load_average' in config and config['load_average']:
+		global_explicit_env['--load-average'] = config['load_average'];
+
+	if not 'CGRA_MAPPER' in os.environ:
+		global_explicit_env['CGRA_MAPPER'] = os.path.join(cgrame_root, 'build/bin/cgrame');
+
+	# search paths for existing benchmarks & architectures
+	bench_matches = find_matching_files(benchdirs, bench_specs);
+	arch_matches = find_matching_files(archdirs, xml_arch_bases, '.xml');
+
+	# compute actual paths used. Warns about several situations (eg. multiple results)
+	bench_dirs,     bench_dir_problems = convert_to_one_to_one(bench_matches);
+	xml_arch_files, arch_file_problems = convert_to_one_to_one(arch_matches);
+
+	for problem in bench_dir_problems + arch_file_problems:
+		name, value, errstr = problem;
+		warnp("{} {} : {}".format(name, errstr, value));
+
+	#make experiment objects from config
+	experiments = create_experiments(experiment_specs, mapperarg_strs, bench_dirs, arch_specs, xml_arch_files, cpp_arch_bases, arch_arg_strs);
+
+	# run the jobs!
+	pool = multiprocessing.Pool(config['parallelism']);
+	result_futures = {};
+	for experiment in experiments:
+		result_futures[experiment] = pool.apply_async(run_test_and_parse, (
+			output_prefix, {'run', 'setup', 'parse'}, parse_directves, experiment, global_explicit_env
+		));
+
+	{ex:fut.get() for ex,fut in result_futures.items()};
+def find_matching_files(dir_names, file_paths, optional_extension=''):
+	matches_found = { identifier : [] for identifier, path in file_paths.items()};
+	for dir_name in dir_names:
+		if not dir_name.exists():
+			warnp("search directory `{}` does not exist. Ignoring".format(dir_name));
+		elif not dir_name.is_dir():
+			warnp("search directory `{}` is not a directory. Ignoring".format(dir_name));
+		else:
+			for identifier, file_path in file_paths.items():
+				full_path = dir_name / file_path;
+				if full_path.exists():
+					matches_found[identifier] += [full_path];
+				else:
+					full_path_with_ext = dir_name / (file_path + optional_extension);
+					if full_path_with_ext.exists():
+						matches_found[identifier] += [full_path_with_ext];
+	return matches_found;
+
+def convert_to_one_to_one(name_map):
+	result = {};
+	problems = [];
+	for name, value in name_map.items():
+		if len(value) == 0:
+			problems += [(name, value, 'has no matches, ignoring')];
+		else:
+			if len(value) != 1:
+				problems += [(name, value, 'has more than one match, using the first one. Matches found')];
+			result[name] = value[0];
+	return result, problems;
+
+def create_experiments(experiment_specs, mapperarg_strs, bench_dirs, arch_specs, xml_arch_files, cpp_arch_bases, arch_arg_strs):
+	experiments = set();
+	prprint(experiment_specs);
+	for arch_spec_name, bench_name, mapper_args_name in experiment_specs:
+		mapper_args = None;
+		bench = None;
+		arch = None;
+		if arch_spec_name not in arch_specs:
+			warnp("unrecognized arch spec identifier `{}`".format(arch_spec_name));
+		elif bench_name not in bench_dirs:
+			warnp("unrecognized bench identifier `{}`".format(bench_name));
+		elif mapper_args_name not in mapperarg_strs:
+			warnp("unrecognized mapper args identifier `{}`".format(mapper_args_name));
+		else:
+			mapper_args = mapperarg_strs[mapper_args_name];
+			bench = Benchmark(bench_name, bench_dirs[bench_name]);
+
+			arch_name, arch_args_str_names = arch_specs[arch_spec_name];
+			arch_args_str = ' '.join([arch_arg_strs[name] for name in arch_args_str_names if name in arch_arg_strs]);
+			if arch_name in xml_arch_files:
+				arch = Architecture(arch_spec_name, Architecture.Type.XML, xml_arch_files[arch_name], arch_args_str);
+			elif arch_name in cpp_arch_bases:
+				arch = Architecture(arch_spec_name, Architecture.Type.CPP, cpp_arch_bases[arch_name], arch_args_str);
+			else:
+				warnp("unrecognized arch base identifier `{}`".format(arch_name));
+
+		if bench != None and arch != None and mapper_args != None:
+			experiments |= { Experiment(arch, bench, mapper_args_name, mapper_args) };
+
+	return experiments;
+
+def run_test_and_parse(output_prefix, enabled_steps, parse_directives, experiment, base_explicit_env):
+	run_test(output_prefix, enabled_steps, experiment, base_explicit_env);
+	if 'parse' in enabled_steps:
+		run_parse(output_prefix, parse_directives, experiment);
+
+def run_test(output_prefix, enabled_steps, experiment, base_explicit_env):
+	command_lines = [
+		("setup", ['make', MAKE_TARGETS.setup]),
+		("run",   ['make', MAKE_TARGETS.run]),
+	];
+	for name, command_line in command_lines:
+		if name in enabled_steps:
+			run_test_command(output_prefix, name, command_line, experiment, base_explicit_env);
+
+def run_test_command(output_prefix, name, command_line, experiment, base_explicit_env):
+	bench_dir = experiment.bench().location()
+	explicit_env = {
+		**base_explicit_env,
+		'CGRA_ARCH_ARGS' : experiment.arch().get_flags(bench_dir),
+		'CGRA_MAPPER_ARGS' : experiment.mapper_args(),
+	};
+
+	make_config_args = [
+		'-C', str(bench_dir),
+	] + ["{}={}".format(k,v) for k,v in explicit_env.items()];
+
+	command_line += make_config_args;
+	print("Running {:8} : {}".format("`{}`".format(name), command_line_to_string(command_line)));
+
+	output_dir_path = pathlib.Path(experiment.output_dir_name(output_prefix)) / name;
+	output_dir_path.mkdir(parents=True, exist_ok=True);
+	stdout_fd = os.open(str(output_dir_path / FILENAMES.stdout), os.O_RDWR | os.O_CREAT);
+	stderr_fd = os.open(str(output_dir_path / FILENAMES.stderr), os.O_RDWR | os.O_CREAT);
+
+	runner = subprocess.Popen(command_line, stdout=stdout_fd, stderr=stderr_fd);
+	runner.wait();
+
+	returncode_filename = 'succeed' if runner.returncode == 0 else 'fail';
+	returncode_path = output_dir_path / returncode_filename;
+	returncode_path.write_text(str(runner.returncode));
+
+def run_parse(output_prefix, parse_directives, experiment):
+	experiment_path = pathlib.Path(experiment.output_dir_name(output_prefix));
+
+	results = { d.identifier():[] for d in parse_directives };
+	try:
+		with open(str(experiment_path / 'run' /  FILENAMES.stdout), 'r') as stdout:
+			for line in stdout:
+				for directive in parse_directives:
+					mch = directive.regex().search(line);
+					if mch:
+						try:
+							results[directive.identifier()] += [mch.expand(directive.expansion())];
+						except Exception as ie:
+							warnp("{} when matching {}. Match was {}".format(ie, directive, mch));
+		with open(str(experiment_path /  'run' / FILENAMES.parse), 'w') as parse_dump:
+			for ident, matches in results.items():
+				parse_dump.write("'{}' : {}\n".format(ident, matches));
+	except FileNotFoundError as fnfe:
+		warnp(fnfe);
+
+def command_line_to_string(command_line):
+	# quotes every element with single quotes, and 'escapes' single quotes
+	return ' '.join([
+		"'{}'".format(word.replace("'", """'"'"'"""))
+			for word in command_line
+	]);
+
+def repr_helper(obj, arguments):
+	return "{}({})".format(obj.__class__.__name__, ', '.join([repr(v) for v in arguments]));
+
+def warnp(str):
+	print("WARNING: {}".format(str));
+
+def errp(str):
+	print("ERROR: {}".format(str));
+
+class Architecture:
+	class Type(enum.Enum):
+		XML = 1;
+		CPP = 2;
+
+	def __init__(self, identifier, arch_type, arch_base, arch_args):
+		self._identifier = identifier;
+		self._arch_type = arch_type;
+		self._arch_base = arch_base;
+		self._arch_args = arch_args;
+
+	def __repr__(self): return repr_helper(self, [self.identifier(), self._arch_type, self._arch_base, self._arch_args]);
+	def identifier(self): return self._identifier;
+	def get_flags(self, run_dir):
+		if self._arch_type == Architecture.Type.XML:
+			relative_arch_file = os.path.relpath(str(self._arch_base), str(run_dir));
+			result = "--xml {}".format(relative_arch_file);
+		elif self._arch_type == Architecture.Type.CPP:
+			result = "--cpp {}".format(self._arch_base);
+		else:
+			raise Exception("unhandled arch type: {}".format(self._arch_type));
+		if self._arch_args:
+			result += " --arch-opts '{}'".format(self._arch_args);
+		return result;
+
+
+class Benchmark:
+	def __init__(self, identifier, location):
+		self._identifier = identifier;
+		self._location = location;
+
+	def __repr__(self): return repr_helper(self, [self.identifier(), self.location()]);
+	def identifier(self): return self._identifier;
+	def location(self): return self._location;
+
+class Experiment:
+	def __init__(self, arch, bench, mapper_args_name, mapper_args):
+		self._arch = arch;
+		self._bench = bench;
+		self._mapper_args_name = mapper_args_name;
+		self._mapper_args = mapper_args;
+
+	def __repr__(self): return repr_helper(self, [self.arch(), self.bench(), self.mapper_args_name(), self.mapper_args()])
+	def arch(self): return self._arch;
+	def bench(self): return self._bench;
+	def mapper_args_name(self): return self._mapper_args_name;
+	def mapper_args(self): return self._mapper_args;
+	def output_dir_name(self, prefix):
+		return os.path.join(prefix, self.bench().identifier(), self.mapper_args_name(), self.arch().identifier());
+
+class ParseDirective:
+	def __init__(self, identifier, regex, expansion):
+		self._identifier = identifier;
+		self._regex = regex;
+		self._expansion = expansion;
+	def __repr__(self): return repr_helper(self, [self.identifier(), self.regex(), self.expansion()]);
+
+	def identifier(self): return self._identifier;
+	def      regex(self): return self._regex;
+	def  expansion(self): return self._expansion;
+
+if __name__ == "__main__":
+	main();

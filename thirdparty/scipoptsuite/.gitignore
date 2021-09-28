@@ -1,0 +1,12 @@
+# Ignore everything
+*
+
+# White-list
+!.gitignore
+!CMakeLists.txt
+!COPYING
+!INSTALL
+!Makefile
+!Makefile.doit
+!*.tgz
+

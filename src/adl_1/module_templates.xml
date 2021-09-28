@@ -1,0 +1,146 @@
+<templates>
+    <module name="meshblock1">
+        <input name="in0"/> <input name="in1"/> <input name="in2"/> <input name="in3"/>
+        <output name="out"/>
+        <inst name="func" module="FuncUnit" op="add sub mul div and or xor shl shr"/>
+        <inst name="register" module="Register"/>
+        <wire name="in_a"/> <wire name="in_b"/> <wire name="func_out"/>
+        <connection select-from="this.in0 this.in1 this.in2 this.in3 register.out" to="in_a in_b"/>
+        <connection from="in_a" to="func.in_a"/>
+        <connection from="in_b" to="func.in_b"/>
+        <connection select-from="in_a in_b func.out" to="func_out"/>
+        <connection from="func_out" to="register.in"/>
+        <connection select-from="func_out register.out" to="this.out"/>
+    </module>
+
+    <module name="meshblock2">
+        <input name="in0"/> <input name="in1"/> <input name="in2"/> <input name="in3"/>
+        <output name="out"/>
+        <sub-module name="test" module="block1"/>
+        <connection from="this.in0" to="test.in0"/>
+        <connection from="this.in1" to="test.in1"/>
+        <connection from="this.in2" to="test.in2"/>
+        <connection from="this.in3" to="test.in3"/>
+        <connection from="test.out" to="this.out"/>
+    </module>
+
+    <module name="diagblock1">
+        <input name="in0"/> <input name="in1"/> <input name="in2"/> <input name="in3"/> <input name="in4"/> <input name="in5"/> <input name="in6"/> <input name="in7"/>
+        <output name="out"/>
+        <inst name="func" module="FuncUnit" op="add sub mul div and or xor shl shr"/>
+        <inst name="register" module="Register"/>
+        <wire name="in_a"/> <wire name="in_b"/> <wire name="func_out"/>
+        <connection select-from="this.in0 this.in1 this.in2 this.in3 this.in4 this.in5 this.in6 this.in7 register.out" to="in_a in_b"/>
+        <connection from="in_a" to="func.in_a"/>
+        <connection from="in_b" to="func.in_b"/>
+        <connection select-from="in_a in_b func.out" to="func_out"/>
+        <connection from="func_out" to="register.in"/>
+        <connection select-from="func_out register.out" to="this.out"/>
+    </module>
+
+    <module name="IO">
+        <input name="in"/> <output name="out"/> <inout name="bidir"/>
+        <inst name="io" module="IO"/>
+        <connection from="this.in" to="io.in"/>
+        <connection from="io.out" to="this.out"/>
+        <connection from="io.bidir" to="this.bidir"/>
+    </module>
+
+    <module name="MemPort">
+        <input name="in0"/>
+        <input name="in1"/>
+        <input name="in2"/>
+        <input name="in3"/>
+        <output name="out"/>
+        <inst name="mem_port" module="MemPort" ninput="4"/>
+        <connection from="this.in0" to="mem_port.in0"/>
+        <connection from="this.in1" to="mem_port.in1"/>
+        <connection from="this.in2" to="mem_port.in2"/>
+        <connection from="this.in3" to="mem_port.in3"/>
+        <connection from="mem_port.out" to="this.out"/>
+    </module>
+
+    <module name="VLIWAdresPE">
+        <input name="in0"/> <input name="in1"/> <input name="in2"/> <input name="in3"/> <input name="in4"/> <input name="in5"/> <input name="in6"/> <input name="in7"/>
+        <output name="out"/>
+        <input name="rf_in_muxa"/> <input name="rf_in_muxout"/> <output name="rf_out"/>
+        <inst name="func" module="FuncUnit" op="add sub mul div and or xor shl shra shrl"/>
+        <inst name="mux_out" module="Multiplexer" ninput="2"/>
+        <inst name="const" module="ConstUnit"/>
+        <connection select-from="this.in0 this.in1 this.in2 this.in3 this.in4 this.in5 this.in6 this.in7 const.out this.rf_in_muxa" to="func.in_a"/>
+        <connection select-from="this.in0 this.in1 this.in2 this.in3 this.in4 this.in5 this.in6 this.in7 const.out" to="func.in_b"/>
+        <connection from="func.out" to="this.rf_out"/>
+        <connection select-from="this.in0 this.in1 this.in2 this.in3 this.in4 this.in5 this.in6 this.in7" to="mux_out.in0"/>
+        <connection from="this.rf_in_muxout" to="mux_out.in1"/>
+        <connection from="mux_out.out" to="this.out"/>
+    </module>
+
+    <module name="VLIWAdresPETorroid">
+        <input name="in0"/> <input name="in1"/> <input name="in2"/> <input name="in3"/> <input name="in4"/> <input name="in5"/> <input name="in6"/> <input name="in7"/> <input name="in8"/>
+        <output name="out"/>
+        <input name="rf_in_muxa"/> <input name="rf_in_muxout"/> <output name="rf_out"/>
+        <inst name="func" module="FuncUnit" op="add sub mul div and or xor shl shra shrl"/>
+        <inst name="mux_out" module="Multiplexer" ninput="2"/>
+        <inst name="const" module="ConstUnit"/>
+        <connection select-from="this.in0 this.in1 this.in2 this.in3 this.in4 this.in5 this.in6 this.in7 this.in8 const.out this.rf_in_muxa" to="func.in_a"/>
+        <connection select-from="this.in0 this.in1 this.in2 this.in3 this.in4 this.in5 this.in6 this.in7 this.in8 const.out" to="func.in_b"/>
+        <connection from="func.out" to="this.rf_out"/>
+        <connection select-from="this.in0 this.in1 this.in2 this.in3 this.in4 this.in5 this.in6 this.in7 this.in8" to="mux_out.in0"/>
+        <connection from="this.rf_in_muxout" to="mux_out.in1"/>
+        <connection from="mux_out.out" to="this.out"/>
+    </module>
+
+    <module name="CGAAdresPE">
+        <input name="in0"/> <input name="in1"/> <input name="in2"/> <input name="in3"/> <input name="in4"/> <input name="in5"/> <input name="in6"/> <input name="in7"/>
+        <output name="out"/>
+        <input name="rf_in_muxa"/> <input name="rf_in_muxout"/> <output name="rf_out"/>
+        <inst name="func" module="FuncUnit" op="add sub"/>
+        <inst name="mux_out" module="Multiplexer" ninput="2"/>
+        <inst name="const" module="ConstUnit"/>
+        <connection select-from="this.in0 this.in1 this.in2 this.in3 this.in4 this.in5 this.in6 this.in7 const.out this.rf_in_muxa" to="func.in_a"/>
+        <connection select-from="this.in0 this.in1 this.in2 this.in3 this.in4 this.in5 this.in6 this.in7 const.out" to="func.in_b"/>
+        <connection from="func.out" to="this.rf_out"/>
+        <connection select-from="this.in0 this.in1 this.in2 this.in3 this.in4 this.in5 this.in6 this.in7" to="mux_out.in0"/>
+        <connection from="this.rf_in_muxout" to="mux_out.in1"/>
+        <connection from="mux_out.out" to="this.out"/>
+    </module>
+
+    <module name="globalRF">
+        <output name="out0"/> <output name="out1"/> <output name="out2"/> <output name="out3"/> <output name="out4"/> <output name="out5"/> <output name="out6"/> <output name="out7"/>
+        <input name="in0"/> <input name="in1"/> <input name="in2"/> <input name="in3"/>
+        <inst module="RegisterFile" name="rf" ninput="4" noutput="8" log2-nregister="3" size="32"/>
+        <connection from="this.in0" to="rf.in0"/>
+        <connection from="this.in1" to="rf.in1"/>
+        <connection from="this.in2" to="rf.in2"/>
+        <connection from="this.in3" to="rf.in3"/>
+        <connection from="rf.out0" to="this.out0"/>
+        <connection from="rf.out1" to="this.out1"/>
+        <connection from="rf.out2" to="this.out2"/>
+        <connection from="rf.out3" to="this.out3"/>
+        <connection from="rf.out4" to="this.out4"/>
+        <connection from="rf.out5" to="this.out5"/>
+        <connection from="rf.out6" to="this.out6"/>
+        <connection from="rf.out7" to="this.out7"/>
+    </module>
+
+    <module name="externRF1_1">
+        <input name="in0"/>
+        <output name="out0"/> <output name="out1"/>
+        <inst module="RegisterFile" name="rf" ninput="1" noutput="2" log2-nregister="1" size="32"/>
+        <connection from="this.in0" to="rf.in0"/>
+        <connection from="rf.out0" to="this.out0"/>
+        <connection from="rf.out1" to="this.out1"/>
+    </module>
+
+    <module name="externRF2_1">
+        <input name="in0"/> <input name="in1"/>
+        <output name="out0"/> <output name="out1"/> <output name="out2"/> <output name="out3"/>
+        <inst module="RegisterFile" name="rf" ninput="2" noutput="4" log2-nregister="2" size="32"/>
+        <connection from="this.in0" to="rf.in0"/>
+        <connection from="this.in1" to="rf.in1"/>
+        <connection from="rf.out0" to="this.out0"/>
+        <connection from="rf.out1" to="this.out1"/>
+        <connection from="rf.out2" to="this.out2"/>
+        <connection from="rf.out3" to="this.out3"/>
+    </module>
+</templates>

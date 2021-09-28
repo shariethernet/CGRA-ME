@@ -1,0 +1,39 @@
+#Excluding binary file
+*.o
+*.d
+*.a
+*.so
+*.orig
+
+#Excluding vim temp file
+*.swp
+
+#Excluding llvm related file
+*.bc
+*.ll
+
+#Excluding DFG file
+*.tag
+*.dot
+
+#Excluding user custom benchmarks
+benchmarks/userbench/*
+!benchmarks/userbench/README
+
+#Excluding build path
+build/
+
+#Exclude exp-run
+benchmarks/exp-run/
+
+#Excluding output
+/output/
+
+#Excluding cmake file
+cmake-build*
+
+#Exclude python caches
+**/__pycache__
+
+#Excluding specific file
+

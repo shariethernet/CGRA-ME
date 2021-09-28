@@ -1,0 +1,26 @@
+<architecture row="4" col="4">
+    <pattern col-range="1 2" row-range="0 0">
+        <block module="block1"/>
+        <connection from="(rel 0 0).out" to="(rel 1 0).in2"/>
+        <connection from="(rel 1 0).out" to="(rel 0 0).in2"/>
+    </pattern>
+
+    <pattern col-range="1 2" row-range="3 3">
+        <block module="block2"/>
+        <connection from="(rel 0 0).out" to="(rel -1 0).in2"/>
+    </pattern>
+
+    <pattern col-range="0 0" row-range="1 2">
+        <block module="block2"/>
+        <connection from="(rel 0 0).out" to="(rel 0 1).in2"/>
+    </pattern>
+
+    <pattern col-range="3 3" row-range="1 2">
+        <block module="block2"/>
+        <connection from="(rel 0 0).out" to="(rel 0 -1).in2"/>
+    </pattern>
+
+    <pattern col-range="1 2" row-range="1 2" counter="stupid counter name" wrap-around="on">
+        <block module="block1"/>
+    </pattern>
+</architecture>

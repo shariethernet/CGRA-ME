@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8" />
+
+<head>
+    <title>CGRA Interactive Viewer</title>
+    <script type "text/javascipt" src="../thirdparty/vis/dist/vis-network.min.js"></script>
+    <link href="../thirdparty/vis/dist/vis-network.min.css" rel="stylesheet" type="text/css" />
+    <style type="text/css">
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body onload="draw()">
+
+    <script src="context-div.js"></script>
+
+    <style type="text/css">
+        div.tabcontent {
+            width: 100%;
+            height: calc(100% - 45px);
+        }
+        div.tab {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
+        }
+        div.tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            transition: 0.3s;
+        }
+        div.tab button:hover {
+            background-color: #ddd;
+        }
+        div.tab button.active {
+            background-color: #ccc;
+        }
+    </style>
+
+    <script type="text/javascript">
+        function showContext(event, ii) {
+            var i, tabcontent, tablinks;
+
+            // Hide content
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+
+            // Hide link
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(ii).style.display = "block";
+            event.currentTarget.className += " active";
+        }
+
+        document.getElementById("defaultOpen").click();
+    </script>
+
+    <script type "text/javascipt" src="CGRA.js"></script>
+
+</body>
+
+</html>

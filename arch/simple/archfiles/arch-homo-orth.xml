@@ -1,0 +1,17 @@
+  <architecture col="10" row="10">
+    <diagonal row-range="0 9" col-range="0 9" 
+          out-north=".out"
+          out-east=".out"
+          out-west=".out"
+          out-south=".out"
+          in-north=".in0"
+          in-east=".in1"
+          in-west=".in2"
+          in-south=".in3"
+          io="every-side-port"
+          >
+      <interior>
+        <block module="block2">
+      </interior>
+    </diagonal>
+  </architecture>

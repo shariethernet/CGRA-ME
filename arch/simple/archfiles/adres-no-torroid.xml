@@ -1,0 +1,81 @@
+<architecture rows="12" cols="4">
+	<!-- Add the register file to the top -->
+	<pattern row-range="0 0" col-range="0 0">
+		<block module="globalRF"/>
+	</pattern>
+
+	<!-- Add the IOs -->
+	<pattern row-range="1 1" col-range="0 3">
+		<block module="IO"/>
+	</pattern>
+
+	<!-- Add the MemUs -->
+	<pattern row-range="2 11" col-range="0 0" row-skip="2">
+		<block module="MemPort"/>
+	</pattern>
+
+	<!-- Add the VLIW FUs -->
+	<pattern row-range="3 3" col-range="0 3">
+		<block module="VLIWAdresPE"/>
+	</pattern>
+
+	<!-- Add the external register files -->
+	<pattern row-range="4 10" col-range="0 3" row-skip="2">
+		<block module="externRF1_1"/>
+	</pattern>
+
+	<!-- Add the CGA FUs -->
+	<pattern row-range="6 12" col-range="0 3" row-skip="2">
+		<block module="CGAAdresPE"/>
+	</pattern>
+
+	<!-- MemPort to PE connections -->
+	<pattern row-range="2 11" col-range="0 0" row-skip="2">
+		<connection from="(rel 0 0).out" to="(rel 1 0).in7"/>
+		<connection from="(rel 0 0).out" to="(rel 1 1).in7"/>
+		<connection from="(rel 0 0).out" to="(rel 1 2).in7"/>
+		<connection from="(rel 0 0).out" to="(rel 1 3).in7"/>
+		<connection from="(rel 1 0).out" to="(rel 0 0).in0"/>
+		<connection from="(rel 1 1).out" to="(rel 0 0).in1"/>
+		<connection from="(rel 1 2).out" to="(rel 0 0).in2"/>
+		<connection from="(rel 1 3).out" to="(rel 0 0).in3"/>
+	</pattern>
+
+	<!-- IO to PE connections -->
+	<pattern row-range="1 1" col-range="0 3">
+		<connection from="(rel 0 0).out" to="(rel 2 0).in0"/>
+		<connection from="(rel 2 0).out" to="(rel 0 0).in"/>
+	</pattern>
+
+	<!-- VLIW FUs to shared register file -->
+	<pattern row-range="3 3" col-range="0 3" counter="i">
+		<connection from="(rel -3 -(i)).out(i)*2" to="(rel 0 0).rf_in_muxa"/>
+		<connection from="(rel -3 -(i)).out(i)*2+1" to="(rel 0 0).rf_in_muxout"/>
+		<connection from="(rel 0 0).rf_out" to="(rel -3 -(i)).in(i)"/>
+	</pattern>
+
+	<!-- Connect the external regsiter files to their PEs -->
+	<pattern row-range="4 12" col-range="0 3" row-skip="2">
+		<connection from="(rel 0 0).out0" to="(rel 2 0).rf_in_muxa"/>
+		<connection from="(rel 0 0).out1" to="(rel 2 0).rf_in_muxout"/>
+		<connection from="(rel 2 0).rf_out" to="(rel 0 0).in0"/>
+	</pattern>
+
+	<!-- North/South inter PE connections -->
+	<pattern row-range="3 9" col-range="0 3" row-skip="2">
+		<connection from="(rel 0 0).out" to="(rel 3 0).in0"/>
+		<connection from="(rel 3 0).out" to="(rel 0 0).in2"/>
+	</pattern>
+
+	<!-- East/West inter PE connections -->
+	<pattern row-range="3 12" col-range="0 2" row-skip="2">
+		<connection from="(rel 0 0).out" to="(rel 0 1).in3"/>
+		<connection from="(rel 0 1).out" to="(rel 0 0).in1"/>
+	</pattern>
+
+	<!-- Add the IO ports -->
+	<pattern col-range="0 3" row-range="1 1" counter="i">
+		<inout name="bidir(i)"/>
+		<connection from="this.bidir(i)" to="(rel 0 0).bidir"/>
+	</pattern>
+</architecture>

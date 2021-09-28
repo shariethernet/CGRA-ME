@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+if [ ! -d "src" ] || [ ! -d "thirdparty" ] || [ ! -e "cgrame_env" ]; then
+	echo "please execute in the top level directory; where src/ and thirdparty/ are"
+	exit 1;
+fi
+
+if [ -z "$SHELL" ]; then
+	echo "WARNING: \$SHELL not set, using bash"
+	SHELL_EXE="bash";
+else
+	SHELL_EXE="$SHELL";
+fi
+
+if [ ! -z "$CGRA_ME_ROOTDIR" ]; then
+	echo "WARNING: invocation from already initialized environment. Old CGRA_ME_ROOTDIR=$CGRA_ME_ROOTDIR";
+fi
+
+export CGRA_ME_ROOTDIR="$(readlink --canonicalize "$PWD")/";
+export CGRA_ME_BINDIR="$CGRA_ME_ROOTDIR/build/bin/";
+export CGRA_ME_LIBDIR="$CGRA_ME_ROOTDIR/build/lib/";
+export CGRA_ME_SCRIPTSDIR="$CGRA_ME_ROOTDIR/build/script/";
+export CGRA_ME_BENCHMARKDIR="$CGRA_ME_ROOTDIR/benchmarks/";
+
+export PATH="$CGRA_ME_SCRIPTSDIR:$CGRA_ME_BINDIR:$PATH"
+export LD_LIBRARY_PATH="$CGRA_ME_LIBDIR:$LD_LIBRARY_PATH"
+
+export CGRA_MAPPER="cgrame"
+
+echo "Entering $SHELL_EXE with setup environment. CGRA_ME_ROOTDIR=$CGRA_ME_ROOTDIR";
+$SHELL_EXE
+echo "Exiting environment. Old CGRA_ME_ROOTDIR=$CGRA_ME_ROOTDIR";
+

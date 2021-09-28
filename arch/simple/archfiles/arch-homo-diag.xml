@@ -1,0 +1,25 @@
+<architecture col="10" row="10">
+    <diagonal  row-range="0 9" col-range="0 9"
+              out-north=".out"
+              out-east=".out"
+              out-west=".out"
+              out-south=".out"
+              out-northeast=".out"
+              out-northwest=".out"
+              out-southeast=".out"
+              out-southwest=".out"
+              in-north=".in0"
+              in-east=".in1"
+              in-west=".in2"
+              in-south=".in3"
+              in-northeast=".in4"
+              in-northwest=".in5"
+              in-southeast=".in6"
+              in-southwest=".in7"
+              io="every-side-port"
+              >
+      <interior row="1">
+        <block module="diagblock1"/>
+      </interior>
+    </diagonal>
+  </architecture>
